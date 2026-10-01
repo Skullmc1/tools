@@ -1,0 +1,27 @@
+{
+  "name": "tools-app",
+  "version": "0.1.0",
+  "description": "A local toolbox that opens in your browser when you type `tools`.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tools": "src/cli/main.ts"
+  },
+  "scripts": {
+    "dev": "bun --hot src/server/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bun-plugin-tailwind": "latest",
+    "react": "^19",
+    "react-dom": "^19",
+    "tailwindcss": "^4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}
