@@ -36,6 +36,10 @@ Self-hosted, declared by hand in `styles.css` (see the comment there).
 - **`.segmented`**: one-of-many choice as a row of cells; selected cell is ink.
 - **`.input`**, **`.range`**: mono numerals, ink border; the range thumb is an orange grip.
 - **TrimBar**: timeline drawn to scale. Selected span is solid ink, ends are orange grips, playhead is an orange line.
+- **PrintProgress** (`components/PrintProgress.tsx`): the progress label for any job. A black print line wipes across for measurable progress; for a stage with no honest percentage (`indeterminate`), a black bar sweeps back and forth and no number is shown.
+- **SaveBox** and `useSaveFlow` (`components/SaveBox.tsx`): the Save as… button with where the file went and Show in folder. Every tool that produces a file uses it.
+- **`.checker`**: the transparency checkerboard, in label tones. Used behind cut-out images; the backdrop can be switched to white, black or orange to judge edges.
+- **DropZone** takes an optional `note` box above Accepts for anything worth knowing before dropping a file (for example a one-time model download).
 - Icons: `src/web/components/icons.tsx`, 2.5px square-cap strokes on a 24 grid. Add new ones there in the same style.
 
 ## Layout

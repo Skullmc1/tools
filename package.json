@@ -15,9 +15,11 @@
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
     "@fontsource-variable/azeret-mono": "^5.3.0",
+    "@huggingface/transformers": "^4.3.0",
     "bun-plugin-tailwind": "latest",
     "react": "^19",
     "react-dom": "^19",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4"
   },
   "devDependencies": {

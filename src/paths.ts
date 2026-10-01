@@ -8,6 +8,7 @@ export const STATE_DIR = process.env.TOOLS_STATE_DIR ?? join(homedir(), ".tools"
 export const SERVER_STATE_FILE = join(STATE_DIR, "server.json");
 export const CONFIG_FILE = join(STATE_DIR, "config.json");
 export const LOG_FILE = join(STATE_DIR, "server.log");
+export const MODELS_DIR = process.env.TOOLS_MODELS_DIR ?? join(STATE_DIR, "models");
 
 export const TEMP_ROOT = join(tmpdir(), "tools-app");
 

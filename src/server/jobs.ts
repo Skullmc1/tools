@@ -13,14 +13,15 @@ export type JobResult = {
 };
 
 export type JobEvent =
-  | { type: "progress"; progress: number; note?: string }
+  | { type: "progress"; progress: number; note?: string; indeterminate?: boolean }
   | { type: "done"; result: Omit<JobResult, "path"> }
   | { type: "error"; message: string }
   | { type: "cancelled" };
 
 export type JobContext = {
   signal: AbortSignal;
-  progress: (fraction: number, note?: string) => void;
+  /** Pass null when a stage has no measurable progress. */
+  progress: (fraction: number | null, note?: string) => void;
 };
 
 export type Job = {
@@ -57,7 +58,12 @@ export class JobStore {
 
     work({
       signal: job.controller.signal,
-      progress: (fraction, note) => emit({ type: "progress", progress: Math.max(0, Math.min(1, fraction)), note }),
+      progress: (fraction, note) =>
+        emit(
+          fraction === null
+            ? { type: "progress", progress: 0, note, indeterminate: true }
+            : { type: "progress", progress: Math.max(0, Math.min(1, fraction)), note },
+        ),
     })
       .then((result) => {
         if (job.controller.signal.aborted) {

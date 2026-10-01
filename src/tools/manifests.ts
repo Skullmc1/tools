@@ -27,6 +27,16 @@ export const manifests: ToolManifest[] = [
     status: "live",
   },
   {
+    id: "bg-remove",
+    name: "Remove background",
+    tagline: "Cut the subject out as a transparent PNG.",
+    from: "IMG",
+    to: "PNG",
+    accepts: ["png", "jpg", "jpeg", "webp", "avif", "tif", "tiff"],
+    requires: [],
+    status: "live",
+  },
+  {
     id: "pdf-to-images",
     name: "PDF to images",
     tagline: "Every page as a PNG or JPEG.",

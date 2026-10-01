@@ -5,6 +5,7 @@ A local toolbox that opens in your browser when you type `tools` in any terminal
 **Tools so far**
 
 - **Video to GIF**: trim, frame rate, width, quality, a size estimate, and an optional "keep under N MB" limit.
+- **Remove background**: drop an image, get the subject as a transparent PNG at full resolution. It runs an AI model on your own machine, on the CPU: expect roughly 5 to 10 seconds per image on a fast computer, longer on a slower one.
 
 Planned: PDF to images, images to PDF, image conversion, file compression.
 
@@ -43,6 +44,7 @@ In a tool: drop a file, adjust the settings, convert, look at the real result, t
 | `~/.tools/server.json` | The running server's pid and port |
 | `~/.tools/config.json` | The last folder you saved to |
 | `~/.tools/server.log` | Server log |
+| `~/.tools/models/` | The background-removal model (109 MB), downloaded the first time you use that tool. Delete the folder to remove it |
 | `%TEMP%\tools-app\` | Uploads and results, deleted when the server stops |
 
 ## Develop
@@ -52,6 +54,8 @@ bun run dev        # server with hot reload at http://127.0.0.1:4777
 bun test           # unit tests plus real ffmpeg conversions
 bun run typecheck
 ```
+
+`bun test` never downloads the model. To also run the test against the real model, set `TOOLS_TEST_MODEL=1` (the first run downloads 109 MB; point `TOOLS_TEST_MODEL_SEED` at an existing transformers.js cache folder to skip that). Set `TOOLS_MODELS_DIR` to keep the model somewhere other than `~/.tools/models`.
 
 ### Layout
 
@@ -72,6 +76,13 @@ src/
 4. Register them in `src/tools/registry.server.ts` and `src/tools/registry.client.tsx`.
 
 The visual system is described in [DESIGN.md](DESIGN.md); new screens should use its components as they are.
+
+## Third-party software and licences
+
+This repo has no licence of its own yet; add one before publishing.
+
+- **Background removal** uses [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) (MIT), in the [onnx-community/BiRefNet_lite-ONNX](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX) conversion, pinned to one exact revision. It runs through [transformers.js](https://github.com/huggingface/transformers.js) (Apache-2.0) and [sharp](https://sharp.pixelplumbing.com) (Apache-2.0). The model is downloaded from Hugging Face on first use rather than stored in this repo.
+- **Video to GIF** runs your own installed [FFmpeg](https://ffmpeg.org); it is not bundled.
 
 ## Security notes
 

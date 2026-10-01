@@ -1,8 +1,10 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api, formatBytes, formatSeconds, type JobEvent, uploadFile, watchJob } from "../../web/api.ts";
 import { DropZone, hasAcceptedExtension } from "../../web/components/DropZone.tsx";
-import { Alert, Check, Folder, Pause, Play, Save } from "../../web/components/icons.tsx";
+import { Alert, Pause, Play } from "../../web/components/icons.tsx";
 import { NumberField } from "../../web/components/NumberField.tsx";
+import { PrintProgress } from "../../web/components/PrintProgress.tsx";
+import { SaveBox, useSaveFlow } from "../../web/components/SaveBox.tsx";
 import { Segmented } from "../../web/components/Segmented.tsx";
 import { TrimBar } from "../../web/components/TrimBar.tsx";
 import { takeHandedOffFile } from "../../web/router.tsx";
@@ -18,7 +20,7 @@ type Meta = { width: number; height: number; fps: number; duration: number; atte
 type Run =
   | { phase: "idle" }
   | { phase: "running"; jobId: string; progress: number; note?: string }
-  | { phase: "done"; jobId: string; result: Result; requestKey: string; savedPath?: string }
+  | { phase: "done"; jobId: string; result: Result; requestKey: string }
   | { phase: "error"; message: string };
 
 const STORAGE_KEY = "tools.gif.settings";
@@ -49,8 +51,7 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
   const [settings, setSettings] = useState(loadSettings);
   const [estimate, setEstimate] = useState<number | "pending" | null>(null);
   const [run, setRun] = useState<Run>({ phase: "idle" });
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveFlow = useSaveFlow();
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -86,7 +87,7 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
     setSource(null);
     setRun({ phase: "idle" });
     setEstimate(null);
-    setSaveError(null);
+    saveFlow.clearError();
     setPlaying(false);
     setPreviewFailed(false);
   }
@@ -183,7 +184,7 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
     live.current.stopWatching?.();
     if (live.current.jobId) api.discard(`/api/jobs/${live.current.jobId}`);
     live.current.jobId = undefined;
-    setSaveError(null);
+    saveFlow.clearError();
     setRun({ phase: "running", jobId: "", progress: 0 });
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
     try {
@@ -197,19 +198,6 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
       });
     } catch (error) {
       setRun({ phase: "error", message: error instanceof Error ? error.message : "The conversion could not start." });
-    }
-  }
-
-  async function save(jobId: string) {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const outcome = await api.post<{ saved: boolean; path?: string }>(`/api/jobs/${jobId}/save`);
-      if (outcome.saved) setRun((r) => (r.phase === "done" ? { ...r, savedPath: outcome.path } : r));
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "The file could not be saved.");
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -434,33 +422,13 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
       {run.phase !== "idle" && (
         <section ref={resultRef} className="label lg:col-span-12" aria-label="Result">
           {run.phase === "running" && (
-            <>
-              <div
-                className="box relative min-h-40 overflow-hidden"
-                role="progressbar"
-                aria-label="Converting"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(run.progress * 100)}
-              >
-                <div className="print-fill absolute inset-0 bg-ink" style={{ scale: `${run.progress} 1` }} />
-                <div className="relative flex min-h-32 flex-wrap items-end justify-between gap-4 text-stock mix-blend-difference">
-                  <p className="code text-5xl sm:text-7xl">Converting</p>
-                  <p className="value text-3xl">{Math.round(run.progress * 100)}%</p>
-                </div>
-              </div>
-              <div className="box flex flex-wrap items-center justify-between gap-3">
-                <p className="text-ink-soft">{run.note ?? "Building the palette and writing frames."}</p>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!run.jobId}
-                  onClick={() => void api.post(`/api/jobs/${run.jobId}/cancel`)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
+            <PrintProgress
+              title="Converting"
+              progress={run.progress}
+              note={run.note ?? "Building the palette and writing frames."}
+              cancelDisabled={!run.jobId}
+              onCancel={() => void api.post(`/api/jobs/${run.jobId}/cancel`)}
+            />
           )}
 
           {run.phase === "error" && (
@@ -479,14 +447,7 @@ export function GifTool({ manifest }: { manifest: ToolManifest }) {
           )}
 
           {run.phase === "done" && (
-            <ResultLabel
-              run={run}
-              stale={run.requestKey !== requestKey}
-              saving={saving}
-              saveError={saveError}
-              onSave={() => save(run.jobId)}
-              onReveal={() => void api.post(`/api/jobs/${run.jobId}/reveal`).catch(() => {})}
-            />
+            <ResultLabel run={run} stale={run.requestKey !== requestKey} saveFlow={saveFlow} />
           )}
         </section>
       )}
@@ -515,13 +476,10 @@ function targetMessage(meta: Meta): string | null {
 type ResultProps = {
   run: Extract<Run, { phase: "done" }>;
   stale: boolean;
-  saving: boolean;
-  saveError: string | null;
-  onSave: () => void;
-  onReveal: () => void;
+  saveFlow: ReturnType<typeof useSaveFlow>;
 };
 
-function ResultLabel({ run, stale, saving, saveError, onSave, onReveal }: ResultProps) {
+function ResultLabel({ run, stale, saveFlow }: ResultProps) {
   const meta = run.result.meta as Meta;
   const note = targetMessage(meta);
   return (
@@ -564,32 +522,7 @@ function ResultLabel({ run, stale, saving, saveError, onSave, onReveal }: Result
             <p className="text-ink-soft">Settings have changed since this GIF was made. Convert again to apply them.</p>
           </div>
         )}
-        <div className="box grid gap-3">
-          <button type="button" className="btn btn-primary min-h-14 text-lg" disabled={saving} onClick={onSave}>
-            <Save />
-            {saving ? "Choose where to save…" : run.savedPath ? "Save another copy…" : "Save as…"}
-          </button>
-          {run.savedPath && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="flex min-w-0 items-start gap-2">
-                <Check className="mt-0.5 shrink-0" />
-                <span className="min-w-0">
-                  Saved to <span className="value text-sm break-all">{run.savedPath}</span>
-                </span>
-              </p>
-              <button type="button" className="btn" onClick={onReveal}>
-                <Folder />
-                Show in folder
-              </button>
-            </div>
-          )}
-          {saveError && (
-            <p className="flex items-start gap-2 font-semibold" role="alert">
-              <Alert className="mt-0.5 shrink-0 text-signal-ink" />
-              {saveError}
-            </p>
-          )}
-        </div>
+        <SaveBox jobId={run.jobId} flow={saveFlow} />
       </div>
     </div>
   );

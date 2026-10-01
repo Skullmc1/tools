@@ -34,11 +34,13 @@ type Props = {
   title: string;
   accepts: string[];
   error?: string | null;
+  /** Anything worth knowing before dropping a file, e.g. a one-time download. */
+  note?: string | null;
   onFile: (file: File) => void;
 };
 
 /** The empty state of a tool: a blank label waiting for its contents. */
-export function DropZone({ title, accepts, error, onFile }: Props) {
+export function DropZone({ title, accepts, error, note, onFile }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const { over, handlers } = useFileDrop(onFile);
 
@@ -74,6 +76,7 @@ export function DropZone({ title, accepts, error, onFile }: Props) {
           {error}
         </div>
       )}
+      {note && <div className="box">{note}</div>}
       <div className="box">
         <span className="legend">Accepts</span>
         <p className="value mt-1">{accepts.join("  ")}</p>
