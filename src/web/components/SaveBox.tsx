@@ -31,14 +31,23 @@ export function useSaveFlow() {
 }
 
 /** The Save as… button, with where the file went and a way to open that folder. */
-export function SaveBox({ jobId, flow }: { jobId: string; flow: ReturnType<typeof useSaveFlow> }) {
+export function SaveBox({
+  jobId,
+  flow,
+  disabled,
+}: {
+  jobId: string;
+  flow: ReturnType<typeof useSaveFlow>;
+  /** For when the result on screen is about to be replaced. */
+  disabled?: boolean;
+}) {
   const savedPath = flow.savedPathFor(jobId);
   return (
     <div className="box grid gap-3">
       <button
         type="button"
         className="btn btn-primary min-h-14 text-lg"
-        disabled={flow.saving}
+        disabled={flow.saving || disabled}
         onClick={() => void flow.save(jobId)}
       >
         <Save />

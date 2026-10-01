@@ -7,7 +7,9 @@ A local toolbox that opens in your browser when you type `tools` in any terminal
 - **Video to GIF**: trim, frame rate, width, quality, a size estimate, and an optional "keep under N MB" limit.
 - **Remove background**: drop an image, get the subject as a transparent PNG at full resolution. It runs an AI model on your own machine, on the CPU: expect roughly 5 to 10 seconds per image on a fast computer, longer on a slower one.
 
-Planned: PDF to images, images to PDF, image conversion, file compression.
+- **Image converter**: PNG, JPEG, WebP and AVIF, with a quality slider and an optional smaller width. It re-converts as you change settings, so the size shown is the real size of the file you'd save. Photos are stood upright and stripped of camera and location data.
+
+Planned: PDF to images, images to PDF, file compression.
 
 Windows only for now.
 

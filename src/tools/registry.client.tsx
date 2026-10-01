@@ -1,10 +1,12 @@
 import type { ComponentType } from "react";
 import { BgRemoveTool } from "./bg-remove/ui.tsx";
 import { GifTool } from "./gif/ui.tsx";
+import { ImageConvertTool } from "./image-convert/ui.tsx";
 import type { ToolManifest } from "./manifests.ts";
 
 // Add a tool's screen here, keyed by its manifest id.
 export const toolScreens: Record<string, ComponentType<{ manifest: ToolManifest }>> = {
   gif: GifTool,
   "bg-remove": BgRemoveTool,
+  "image-convert": ImageConvertTool,
 };

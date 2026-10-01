@@ -2,6 +2,7 @@ import { rmSync, statSync } from "node:fs";
 import { basename, extname } from "node:path";
 import type { ToolServer } from "../../server/context.ts";
 import { HttpError, json, readJson } from "../../server/http.ts";
+import { raceAbort } from "../../server/jobs.ts";
 import { type LoadEvent, MODEL, ModelHost } from "./model.ts";
 import { cutOut, ImageError, probeImage, type Segmenter } from "./pipeline.ts";
 
@@ -93,10 +94,7 @@ export function createBgRemoveServer(engine: Engine): ToolServer {
 
                 // Cancelling returns at once. A download already under way
                 // finishes quietly, and the next run reuses it.
-                const cancelled = new Promise<never>((_, reject) =>
-                  signal.addEventListener("abort", () => reject(signal.reason ?? new Error("Cancelled"))),
-                );
-                return await Promise.race([work(), cancelled]);
+                return await raceAbort(signal, work());
               },
               idle.hold(),
             );

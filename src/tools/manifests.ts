@@ -59,12 +59,12 @@ export const manifests: ToolManifest[] = [
   {
     id: "image-convert",
     name: "Image converter",
-    tagline: "PNG, JPEG, WebP, AVIF, back and forth.",
+    tagline: "PNG, JPEG, WebP and AVIF, with quality and size.",
     from: "PNG",
     to: "WEBP",
-    accepts: ["png", "jpg", "jpeg", "webp", "avif", "gif"],
+    accepts: ["png", "jpg", "jpeg", "webp", "avif", "tif", "tiff"],
     requires: [],
-    status: "planned",
+    status: "live",
   },
   {
     id: "compress",

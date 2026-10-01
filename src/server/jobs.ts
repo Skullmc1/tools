@@ -36,6 +36,19 @@ export type Job = {
 
 const isFinal = (event: JobEvent) => event.type !== "progress";
 
+/**
+ * Lets a job answer a cancel at once, even when the work underneath cannot be
+ * interrupted. The work finishes in the background, so it must clean up after
+ * itself.
+ */
+export function raceAbort<T>(signal: AbortSignal, work: Promise<T>): Promise<T> {
+  const cancelled = new Promise<never>((_, reject) => {
+    if (signal.aborted) return reject(signal.reason ?? new Error("Cancelled"));
+    signal.addEventListener("abort", () => reject(signal.reason ?? new Error("Cancelled")), { once: true });
+  });
+  return Promise.race([work, cancelled]);
+}
+
 export class JobStore {
   private jobs = new Map<string, Job>();
 
