@@ -10,8 +10,26 @@ const PACKAGES: Record<string, SystemPackage> = {
 // interpolation, so a file name can't inject PowerShell.
 const SAVE_DIALOG_SCRIPT = `
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Fg {
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+"@
 [System.Windows.Forms.Application]::EnableVisualStyles()
-$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false }
+# A background process may not take focus, so the dialog would open behind the
+# browser. A synthetic Alt press lifts that restriction for this process.
+[Fg]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+[Fg]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+$owner = New-Object System.Windows.Forms.Form -Property @{
+  TopMost = $true; ShowInTaskbar = $false; FormBorderStyle = 'None'; Opacity = 0
+  StartPosition = 'Manual'; Location = New-Object System.Drawing.Point(-32000, -32000); Size = New-Object System.Drawing.Size(1, 1)
+}
+$owner.Show()
+[void][Fg]::SetForegroundWindow($owner.Handle)
+$owner.Activate()
 $dialog = New-Object System.Windows.Forms.SaveFileDialog
 $dialog.Title = 'Save as'
 $dialog.Filter = $env:TOOLS_DLG_FILTER
