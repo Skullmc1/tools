@@ -4,3 +4,9 @@ dist/
 .DS_Store
 .env
 .env.*
+
+# design tooling scratch
+.impeccable/questions/
+.impeccable/*.json
+.impeccable/*.out
+.impeccable/brief-body.md

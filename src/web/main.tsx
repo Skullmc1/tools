@@ -1,3 +1,4 @@
 import { createRoot } from "react-dom/client";
+import { App } from "./App.tsx";
 
-createRoot(document.getElementById("root")!).render(<h1 className="p-8 text-3xl font-bold">tools</h1>);
+createRoot(document.getElementById("root")!).render(<App />);
