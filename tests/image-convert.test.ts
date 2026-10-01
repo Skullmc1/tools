@@ -140,7 +140,7 @@ describe("cancelling", () => {
 });
 
 describe("normalizeSettings", () => {
-  const info = { width: 800, height: 600, hasAlpha: false, format: "png" };
+  const info = { width: 800, height: 600, hasAlpha: false, format: "png", vector: false };
   test("keeps valid settings", () => {
     expect(normalizeSettings({ format: "avif", quality: 55, width: 640, background: "black" }, info)).toEqual({
       format: "avif",
@@ -171,5 +171,109 @@ describe("outputName", () => {
     expect(outputName("a.jpg", "jpeg")).toBe("a (converted).jpg");
     expect(outputName("a.JPEG", "jpeg")).toBe("a (converted).jpg");
     expect(outputName("a.png", "png")).toBe("a (converted).png");
+  });
+});
+
+describe("SVG sources", () => {
+  const svg = (body: string, attrs = 'width="100" height="50"') =>
+    `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}><rect width="100%" height="100%" fill="#ff0000"/>${body}</svg>`;
+  async function svgFile(name: string, text: string) {
+    const path = join(dir, name);
+    await Bun.write(path, text);
+    return path;
+  }
+  const pixelAt = async (path: string, x: number, y: number) => {
+    const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const o = (y * info.width + x) * 4;
+    return [...data.slice(o, o + 4)];
+  };
+
+  test("is recognised as vector, with its natural size", async () => {
+    const input = await svgFile("natural.svg", svg(""));
+    expect(await inspectImage(input)).toMatchObject({ width: 100, height: 50, format: "svg", vector: true, hasAlpha: true });
+  });
+
+  test("works from a viewBox alone", async () => {
+    const input = await svgFile("viewbox.svg", svg("", 'viewBox="0 0 40 20"'));
+    expect(await inspectImage(input)).toMatchObject({ width: 40, height: 20, vector: true });
+  });
+
+  test("is drawn crisply at the size asked for, larger than its natural size", async () => {
+    const input = await svgFile("grow.svg", svg('<circle cx="50" cy="25" r="20" fill="#0000ff"/>'));
+    const info = await inspectImage(input);
+    const out = await convert(input, "grow-out.png", { format: "png", width: 800 });
+    expect(out.meta).toMatchObject({ width: 800, height: 400 });
+    // Sharp edges, not an upscaled blur: the circle's centre is pure blue, a corner pure red.
+    expect(await pixelAt(out.path, 400, 200)).toEqual([0, 0, 255, 255]);
+    expect(await pixelAt(out.path, 5, 5)).toEqual([255, 0, 0, 255]);
+    expect(info.vector).toBe(true);
+  });
+
+  test("reaches the exact width even when the size does not divide evenly", async () => {
+    const input = await svgFile("odd.svg", svg("", 'width="37" height="23"'));
+    for (const width of [101, 333, 1000, 1024]) {
+      const out = await convert(input, `odd-${width}.webp`, { width });
+      expect(out.meta.width).toBe(width);
+    }
+  });
+
+  test("converts to every raster format, keeping transparency where the format can", async () => {
+    const input = await svgFile("clear.svg", `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="10" height="20" fill="#00ff00"/></svg>`);
+    for (const format of ["png", "webp", "avif"] as const) {
+      const out = await convert(input, `clear-svg.${format}`, { format, width: 200 });
+      expect(out.meta.hasAlpha).toBe(true);
+    }
+    const jpg = await convert(input, "clear-svg.jpg", { format: "jpeg", width: 200, background: "white" });
+    expect(jpg.meta.hasAlpha).toBe(false);
+    const [r, g, b] = await pixelAt(jpg.path, 150, 100);
+    expect(Math.min(r!, g!, b!)).toBeGreaterThan(240);
+  });
+
+  test("has a ceiling on output width, tighter for tall images", async () => {
+    const wide = await svgFile("wide.svg", svg(""));
+    expect(normalizeSettings({ width: 99999 }, await inspectImage(wide)).width).toBe(8192);
+    const tall = await svgFile("tall.svg", svg("", 'width="10" height="10000"'));
+    const info = await inspectImage(tall);
+    const width = normalizeSettings({ width: 99999 }, info).width;
+    expect(width).toBeLessThan(8192);
+    expect(width * Math.round((width * info.height) / info.width)).toBeLessThanOrEqual(100_000_000);
+  });
+
+  test("does not enlarge a photo, whatever width is asked for", async () => {
+    const input = await photo("still-photo.png", 100, 50);
+    expect(normalizeSettings({ width: 5000 }, await inspectImage(input)).width).toBe(100);
+  });
+
+  test("a broken SVG is rejected with a clear message", async () => {
+    const input = await svgFile("broken.svg", "<svg><rect");
+    await expect(inspectImage(input)).rejects.toThrow(/could not be read/i);
+  });
+
+  test("a reference to a missing file does not stop it rendering", async () => {
+    const input = await svgFile("ref.svg", svg('<image href="file:///definitely/not/here.png" width="10" height="10"/>'));
+    const out = await convert(input, "ref-out.png", { format: "png", width: 100 });
+    expect(out.meta.width).toBe(100);
+  });
+});
+
+describe("SVG safety", () => {
+  test("cannot pull in an image from outside its own folder", async () => {
+    const outside = join(dir, "outside-secret.png");
+    await sharp({ create: { width: 20, height: 20, channels: 3, background: "#00ff00" } }).png().toFile(outside);
+    const uploads = join(dir, "uploads-like");
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(uploads, { recursive: true });
+    const forward = outside.split(String.fromCharCode(92)).join("/");
+    const path = join(uploads, "hostile.svg");
+    await Bun.write(
+      path,
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20">` +
+        `<image xlink:href="file:///${forward}" width="20" height="20"/><image href="../outside-secret.png" width="20" height="20"/></svg>`,
+    );
+    const info = await inspectImage(path);
+    const out = join(dir, "hostile-out.png");
+    await convertImage(path, out, { format: "png", quality: 80, width: 20, background: "white" }, info);
+    const { data } = await sharp(out).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(data[3]).toBe(0); // nothing drawn: the outside file stayed outside
   });
 });

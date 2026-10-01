@@ -49,7 +49,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 test("probe describes the image", async () => {
-  expect(await post<unknown>("/api/image-convert/probe", { uploadId: photo })).toEqual({ width: 300, height: 200, hasAlpha: false, format: "png" });
+  expect(await post<unknown>("/api/image-convert/probe", { uploadId: photo })).toEqual({ width: 300, height: 200, hasAlpha: false, format: "png", vector: false });
 });
 
 test("probe rejects unknown uploads and non-images", async () => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ImageInfo } from "../../server/image.ts";
+import { maxWidthFor } from "../../server/limits.ts";
 import { api, formatBytes, type JobEvent, uploadFile, watchJob } from "../../web/api.ts";
 import { DropZone, hasAcceptedExtension } from "../../web/components/DropZone.tsx";
 import { Alert } from "../../web/components/icons.tsx";
@@ -21,6 +22,8 @@ type View = "result" | "original";
 const STORAGE_KEY = "tools.image-convert.settings";
 const DEFAULTS: Settings = { format: "webp", quality: 80, width: 0, background: "white" };
 const WIDTH_PRESETS = [1920, 1280, 800, 480];
+/** A vector image has no native resolution, so offer sizes above and below its natural one. */
+const VECTOR_WIDTH_PRESETS = [512, 1024, 2048, 4096];
 const DEBOUNCE_MS = 450;
 
 const FORMAT_NOTES: Record<Format, string> = {
@@ -55,7 +58,9 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
 
   const info = source?.info ?? null;
   const ready = Boolean(source?.uploadId && info);
-  const width = info ? (settings.width > 0 ? Math.min(settings.width, info.width) : info.width) : 0;
+  const maxWidth = info ? maxWidthFor(info) : 0;
+  const vector = Boolean(info?.vector);
+  const width = info ? (settings.width > 0 ? Math.min(settings.width, maxWidth) : info.width) : 0;
   const request = { format: settings.format, quality: settings.quality, width, background: settings.background };
   const key = JSON.stringify(request);
   const lossy = settings.format !== "png";
@@ -131,7 +136,9 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
     }
     startOver();
     setDropError(null);
-    const url = URL.createObjectURL(file);
+    // Some systems give .svg files no type, and a browser will not draw an untyped SVG.
+    const previewable = /.svg$/i.test(file.name) && file.type !== "image/svg+xml" ? new Blob([file], { type: "image/svg+xml" }) : file;
+    const url = URL.createObjectURL(previewable);
     const upload = uploadFile(file, (uploaded) => setSource((s) => (s?.url === url ? { ...s, uploaded } : s)));
     const held = (live.current = { url, abortUpload: upload.abort } as typeof live.current);
     setSource({ file, url, uploadId: null, info: null, uploaded: 0 });
@@ -171,7 +178,9 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
 
   const widthOptions = [
     { value: 0, label: "Original" },
-    ...WIDTH_PRESETS.filter((w) => !info || w < info.width).map((w) => ({ value: w, label: String(w) })),
+    ...(vector ? VECTOR_WIDTH_PRESETS.filter((w) => w <= maxWidth && w !== info!.width) : WIDTH_PRESETS.filter((w) => !info || w < info.width)).map(
+      (w) => ({ value: w, label: String(w) }),
+    ),
   ];
   const showing = view === "result" && latest ? "result" : "original";
   const fresh = latest?.key === key && !busy;
@@ -269,20 +278,21 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
               <Segmented
                 name="Width preset"
                 options={widthOptions}
-                value={settings.width > 0 && info && settings.width < info.width ? settings.width : 0}
+                value={widthOptions.some((o) => o.value === settings.width) ? settings.width : 0}
                 disabled={!ready}
                 onChange={(w) => update({ width: w })}
               />
               <NumberField
                 value={width}
                 min={1}
-                max={info?.width ?? 1}
+                max={maxWidth || 1}
                 step={10}
                 disabled={!ready}
                 aria-label="Custom width in pixels"
-                onCommit={(w) => update({ width: info && w >= info.width ? 0 : Math.round(w) })}
+                onCommit={(w) => update({ width: info && (vector ? Math.round(w) === info.width : w >= info.width) ? 0 : Math.round(w) })}
               />
             </div>
+            {vector && <p className="mt-2 text-sm text-ink-soft">An SVG is drawn fresh at the size you pick, so it stays sharp.</p>}
           </div>
 
           {flattens && (
@@ -328,6 +338,7 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
             <ResultPanel
               latest={latest}
               originalBytes={source.file.size}
+              vector={vector}
               updating={busy}
               fresh={fresh}
               view={view}
@@ -344,6 +355,8 @@ export function ImageConvertTool({ manifest }: { manifest: ToolManifest }) {
 type PanelProps = {
   latest: Latest;
   originalBytes: number;
+  /** A vector source's size says nothing about the raster's, so no comparison is shown. */
+  vector: boolean;
   updating: boolean;
   fresh: boolean;
   view: View;
@@ -351,7 +364,7 @@ type PanelProps = {
   saveFlow: ReturnType<typeof useSaveFlow>;
 };
 
-function ResultPanel({ latest, originalBytes, updating, fresh, view, setView, saveFlow }: PanelProps) {
+function ResultPanel({ latest, originalBytes, vector, updating, fresh, view, setView, saveFlow }: PanelProps) {
   const meta = latest.result.meta as Meta;
   const size = latest.result.size;
   const change = Math.round((1 - size / originalBytes) * 100);
@@ -364,16 +377,18 @@ function ResultPanel({ latest, originalBytes, updating, fresh, view, setView, sa
         </div>
         <p className="value mt-1 text-5xl">{formatBytes(size)}</p>
       </div>
-      <div className="grid grid-cols-2 gap-[2px]">
-        <div className="box">
-          <span className="legend">Original</span>
-          <p className="value mt-1">{formatBytes(originalBytes)}</p>
+      {!vector && (
+        <div className="grid grid-cols-2 gap-[2px]">
+          <div className="box">
+            <span className="legend">Original</span>
+            <p className="value mt-1">{formatBytes(originalBytes)}</p>
+          </div>
+          <div className="box">
+            <span className="legend">Change</span>
+            <p className="value mt-1 whitespace-nowrap">{change === 0 ? "same" : change > 0 ? `${change}% smaller` : `${-change}% larger`}</p>
+          </div>
         </div>
-        <div className="box">
-          <span className="legend">Change</span>
-          <p className="value mt-1 whitespace-nowrap">{change === 0 ? "same" : change > 0 ? `${change}% smaller` : `${-change}% larger`}</p>
-        </div>
-      </div>
+      )}
       <div className="box">
         <span className="legend">Dimensions</span>
         <p className="value mt-1 whitespace-nowrap">
@@ -393,7 +408,7 @@ function ResultPanel({ latest, originalBytes, updating, fresh, view, setView, sa
             onChange={setView}
           />
         </div>
-        <p className="mt-2 text-sm text-ink-soft">Camera and location details in the photo are removed.</p>
+        {!vector && <p className="mt-2 text-sm text-ink-soft">Camera and location details in the photo are removed.</p>}
       </div>
       <SaveBox jobId={latest.jobId} flow={saveFlow} disabled={!fresh} />
     </div>

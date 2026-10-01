@@ -1,4 +1,5 @@
 import { type ImageInfo, openImage } from "../../server/image.ts";
+import { maxWidthFor } from "../../server/limits.ts";
 
 // Pure conversion logic for the image converter: no server, no model.
 
@@ -9,7 +10,7 @@ export type ConvertSettings = {
   format: Format;
   /** 1 to 100. PNG is lossless and ignores it. */
   quality: number;
-  /** Output width in pixels; height follows. Never larger than the source. */
+  /** Output width in pixels; height follows. Photos are never enlarged; vector images may be. */
   width: number;
   /** What transparent areas become when the format cannot hold transparency. */
   background: Background;
@@ -33,7 +34,7 @@ export function normalizeSettings(raw: any, info: ImageInfo): ConvertSettings {
   return {
     format: typeof raw?.format === "string" && raw.format in FORMATS ? raw.format : DEFAULTS.format,
     quality: clamp(Math.round(numberOr(raw?.quality, DEFAULTS.quality)), 1, 100),
-    width: clamp(Math.round(numberOr(raw?.width, info.width)), 1, info.width),
+    width: clamp(Math.round(numberOr(raw?.width, info.width)), 1, maxWidthFor(info)),
     background: raw?.background === "black" ? "black" : DEFAULTS.background,
   };
 }
@@ -59,8 +60,14 @@ export async function convertImage(
   signal?: AbortSignal,
 ): Promise<{ width: number; height: number; bytes: number }> {
   signal?.throwIfAborted();
-  let image = openImage(input).rotate();
-  if (settings.width < info.width) image = image.resize({ width: settings.width, kernel: "lanczos3" });
+  // A vector image is drawn at the target size instead of being scaled up afterwards.
+  let image = openImage(input, info.vector ? { density: (72 * settings.width) / info.width } : {}).rotate();
+  if (info.vector) {
+    // The density rounds to whole pixels, so land on the exact width asked for.
+    if ((await image.metadata()).width !== settings.width) image = image.resize({ width: settings.width });
+  } else if (settings.width < info.width) {
+    image = image.resize({ width: settings.width, kernel: "lanczos3" });
+  }
   if (!FORMATS[settings.format].transparency) {
     image = image.flatten({ background: settings.background === "black" ? "#000000" : "#ffffff" });
   }

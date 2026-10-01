@@ -1,4 +1,7 @@
 import sharp from "sharp";
+import { MAX_PIXELS } from "./limits.ts";
+
+export { MAX_PIXELS };
 
 // On Windows sharp's file cache keeps images open, which blocks deleting the
 // temp files afterwards.
@@ -7,10 +10,9 @@ sharp.cache(false);
 /** A file that is not a usable image; the message is fit to show the user. */
 export class ImageError extends Error {}
 
-/** Guards memory: a decoded image takes 4 bytes per pixel or more. */
-export const MAX_PIXELS = 100_000_000;
-
-export const openImage = (path: string) => sharp(path, { limitInputPixels: MAX_PIXELS, failOn: "error" });
+/** `density` only matters for vector files: how many pixels an inch is drawn at (72 is 1:1). */
+export const openImage = (path: string, options: { density?: number } = {}) =>
+  sharp(path, { limitInputPixels: MAX_PIXELS, failOn: "error", ...options });
 
 export type ImageInfo = {
   /** Size as displayed, i.e. after applying the photo's rotation tag. */
@@ -19,6 +21,8 @@ export type ImageInfo = {
   hasAlpha: boolean;
   /** sharp's name for the source format, e.g. "jpeg". */
   format: string;
+  /** Drawn from shapes rather than pixels (SVG), so it can be rendered at any size. */
+  vector: boolean;
 };
 
 export async function inspectImage(path: string): Promise<ImageInfo> {
@@ -31,6 +35,7 @@ export async function inspectImage(path: string): Promise<ImageInfo> {
       height: sideways ? width : height,
       hasAlpha: Boolean(hasAlpha),
       format,
+      vector: format === "svg",
     };
   } catch (error) {
     if (error instanceof ImageError) throw error;

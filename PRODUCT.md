@@ -33,7 +33,7 @@ It is the user's own machine doing the work: files go in by drag-drop, come out 
 
 - Live: Video to GIF (trim start/end, FPS, width, quality, size estimate, optional "keep under N MB").
 - Live: Remove background (one image in, transparent PNG out at full resolution; no settings). Uses a local AI model, BiRefNet-lite (MIT), downloaded once on first use (109 MB) and kept in `~/.tools/models`; slower on a CPU, roughly 5 to 10 seconds per image.
-- Live: Image converter (PNG, JPEG, WebP, AVIF; quality, width; one image at a time; re-converts automatically as settings change; output is upright and has no metadata such as GPS).
+- Live: Image converter. Reads PNG, JPEG, WebP, AVIF, TIFF and SVG; writes PNG, JPEG, WebP, AVIF. Quality and width; one image at a time; re-converts automatically as settings change; output is upright and has no metadata such as GPS. SVG is rendered at the chosen width (photos are never enlarged). Its home-page label reads ANY to ANY, which is shorthand: it is not literally any format.
 - Planned, not built: PDF to images, images to PDF, file compression.
 - One file at a time. No crop, no speed change, no batch in v1.
 - The save location is asked every time through the native Save dialog, after the result is shown.
