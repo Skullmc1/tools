@@ -79,8 +79,10 @@ The visual system is described in [DESIGN.md](DESIGN.md); new screens should use
 
 ## Third-party software and licences
 
-This repo has no licence of its own yet; add one before publishing.
+This project is [MIT licensed](LICENSE). It depends only on permissively licensed software (MIT, BSD, Apache-2.0, ISC), and nothing copyleft is bundled in this repo.
 
+- **Fonts**: Archivo and Azeret Mono, under the SIL Open Font License, served from `node_modules` and never from a CDN.
+- **sharp** ships a prebuilt copy of libvips (LGPL-3.0, dynamically linked, installed separately by `bun install`). This matters only if you redistribute a packaged build of the app.
 - **Background removal** uses [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) (MIT), in the [onnx-community/BiRefNet_lite-ONNX](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX) conversion, pinned to one exact revision. It runs through [transformers.js](https://github.com/huggingface/transformers.js) (Apache-2.0) and [sharp](https://sharp.pixelplumbing.com) (Apache-2.0). The model is downloaded from Hugging Face on first use rather than stored in this repo.
 - **Video to GIF** runs your own installed [FFmpeg](https://ffmpeg.org); it is not bundled.
 

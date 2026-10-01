@@ -2,6 +2,7 @@
   "name": "tools-app",
   "version": "0.1.0",
   "description": "A local toolbox that opens in your browser when you type `tools`.",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "bin": {
